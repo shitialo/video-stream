@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  }
+}
+
+/* Video.js custom styles */
+.video-js {
+  font-family: inherit;
+}
+
+.video-js .vjs-big-play-button {
+  @apply border-2 border-white bg-primary-600 bg-opacity-80;
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  line-height: 80px;
+  top: 50%;
+  left: 50%;
+  margin-left: -40px;
+  margin-top: -40px;
+}
+
+.video-js .vjs-big-play-button:hover {
+  @apply bg-primary-700 bg-opacity-90;
+}
+
+.video-js .vjs-control-bar {
+  @apply bg-gray-900 bg-opacity-80;
+}
+
+.video-js .vjs-play-progress {
+  @apply bg-primary-500;
+}
+
+.video-js .vjs-volume-level {
+  @apply bg-primary-500;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-200 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 dark:bg-gray-600 rounded-lg;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500 dark:bg-gray-500;
+}
+
+/* Smooth transitions */
+* {
+  @apply transition-colors duration-200;
+}
+

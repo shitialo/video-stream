@@ -1,0 +1,217 @@
+import { useEffect, useRef, useState } from 'react'
+import videojs from 'video.js'
+import 'video.js/dist/video-js.css'
+import axios from 'axios'
+
+function VideoPlayer({ video, onClose }) {
+  const videoRef = useRef(null)
+  const playerRef = useRef(null)
+  const [streamUrl, setStreamUrl] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    // Fetch streaming URL
+    const getStreamUrl = async () => {
+      try {
+        setLoading(true)
+        const response = await axios.post('/.netlify/functions/get-stream-url', {
+          key: video.key
+        })
+        setStreamUrl(response.data.streamUrl)
+        setError(null)
+      } catch (err) {
+        console.error('Error getting stream URL:', err)
+        setError('Failed to load video')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    getStreamUrl()
+  }, [video.key])
+
+  useEffect(() => {
+    if (!streamUrl || !videoRef.current) return
+
+    // Initialize Video.js player
+    const player = videojs(videoRef.current, {
+      controls: true,
+      autoplay: false,
+      preload: 'auto',
+      fluid: true,
+      aspectRatio: '16:9',
+      playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
+      controlBar: {
+        children: [
+          'playToggle',
+          'volumePanel',
+          'currentTimeDisplay',
+          'timeDivider',
+          'durationDisplay',
+          'progressControl',
+          'remainingTimeDisplay',
+          'playbackRateMenuButton',
+          'pictureInPictureToggle',
+          'fullscreenToggle'
+        ]
+      }
+    })
+
+    playerRef.current = player
+
+    // Set the source
+    player.src({
+      src: streamUrl,
+      type: video.contentType || 'video/mp4'
+    })
+
+    // Add keyboard shortcuts
+    player.on('keydown', (e) => {
+      switch(e.key) {
+        case ' ':
+        case 'k':
+          e.preventDefault()
+          if (player.paused()) {
+            player.play()
+          } else {
+            player.pause()
+          }
+          break
+        case 'f':
+          e.preventDefault()
+          if (player.isFullscreen()) {
+            player.exitFullscreen()
+          } else {
+            player.requestFullscreen()
+          }
+          break
+        case 'm':
+          e.preventDefault()
+          player.muted(!player.muted())
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          player.currentTime(Math.max(0, player.currentTime() - 5))
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          player.currentTime(Math.min(player.duration(), player.currentTime() + 5))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          player.volume(Math.min(1, player.volume() + 0.1))
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          player.volume(Math.max(0, player.volume() - 0.1))
+          break
+        default:
+          break
+      }
+    })
+
+    // Cleanup
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.dispose()
+        playerRef.current = null
+      }
+    }
+  }, [streamUrl, video.contentType])
+
+  // Handle ESC key to close modal
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-90 backdrop-blur-sm">
+      <div className="relative w-full max-w-6xl">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+          aria-label="Close player"
+        >
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {/* Video Info */}
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-white mb-2">{video.name}</h2>
+          <div className="flex items-center gap-4 text-sm text-gray-300">
+            <span className="flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              {(video.size / (1024 * 1024)).toFixed(2)} MB
+            </span>
+            <span className="flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {new Date(video.uploaded).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+
+        {/* Video Player */}
+        <div className="bg-black rounded-lg overflow-hidden shadow-2xl">
+          {loading && (
+            <div className="flex items-center justify-center aspect-video bg-gray-900">
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-white font-medium">Loading video...</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center justify-center aspect-video bg-gray-900">
+              <div className="text-center text-red-400">
+                <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="font-medium">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && streamUrl && (
+            <div data-vjs-player>
+              <video
+                ref={videoRef}
+                className="video-js vjs-big-play-centered"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Keyboard Shortcuts Info */}
+        <div className="mt-4 p-4 bg-gray-800 bg-opacity-50 rounded-lg">
+          <p className="text-sm text-gray-300 font-semibold mb-2">Keyboard Shortcuts:</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-400">
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">Space</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">K</kbd> Play/Pause</div>
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">F</kbd> Fullscreen</div>
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">M</kbd> Mute</div>
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">←</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">→</kbd> Seek ±5s</div>
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">↑</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">↓</kbd> Volume</div>
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">Esc</kbd> Close</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default VideoPlayer
+
