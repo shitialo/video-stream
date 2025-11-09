@@ -45,10 +45,10 @@ function UploadSection({ onUploadComplete }) {
       return
     }
 
-    // Validate file size (max 500MB)
-    const maxSize = 500 * 1024 * 1024
+    // Validate file size (max 2GB)
+    const maxSize = 2 * 1024 * 1024 * 1024 // 2GB
     if (file.size > maxSize) {
-      alert('File size must be less than 500MB')
+      alert('File size must be less than 2GB')
       return
     }
 
@@ -75,10 +75,14 @@ function UploadSection({ onUploadComplete }) {
       })
 
       // Step 2: Upload directly to R2 using presigned URL
+      // Note: Presigned URL is valid for 2 hours, which allows time for large 2GB files
       await axios.put(data.uploadUrl, selectedFile, {
         headers: {
           'Content-Type': selectedFile.type,
         },
+        timeout: 30 * 60 * 1000, // 30 minutes timeout for large files (2GB)
+        maxContentLength: Infinity, // Allow large files
+        maxBodyLength: Infinity, // Allow large files
         onUploadProgress: (progressEvent) => {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
           setUploadProgress(progress)
@@ -170,7 +174,7 @@ function UploadSection({ onUploadComplete }) {
                   Browse Files
                 </button>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
-                  Supports: MP4, WebM, OGG, MOV, AVI (Max 500MB)
+                  Supports: MP4, WebM, OGG, MOV, AVI (Max 2GB)
                 </p>
               </div>
             ) : (

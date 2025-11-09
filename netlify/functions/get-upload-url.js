@@ -80,7 +80,7 @@ exports.handler = async (event) => {
     })
 
     const uploadUrl = await getSignedUrl(s3Client, command, { 
-      expiresIn: 3600 // URL valid for 1 hour
+      expiresIn: 7200 // URL valid for 2 hours (allows time for large 2GB uploads on slower connections)
     })
 
     return {

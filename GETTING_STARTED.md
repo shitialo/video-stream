@@ -225,7 +225,7 @@ Once your app is running, try these awesome features:
 - AVI
 
 ### File Size Limits
-- Default: 500MB per video
+- Default: 2GB per video
 - Can be adjusted in `src/components/UploadSection.jsx`
 
 ### Costs (with free tiers)

@@ -228,7 +228,7 @@ video-stream-app/
 - Check your R2 credentials in environment variables
 - Ensure your R2 bucket exists
 - Check browser console for errors
-- Verify file size is under 500MB
+- Verify file size is under 2GB
 
 ### Videos won't play
 - Check browser console for errors
