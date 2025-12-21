@@ -80,8 +80,8 @@ function App() {
               onClick={() => handleProviderChange('r2')}
               disabled={!availableProviders.r2}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${storageProvider === 'r2'
-                  ? 'bg-orange-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-orange-500 text-white shadow-md'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 } ${!availableProviders.r2 ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <span className="flex items-center gap-2">
@@ -95,8 +95,8 @@ function App() {
               onClick={() => handleProviderChange('do')}
               disabled={!availableProviders.do}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${storageProvider === 'do'
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-blue-500 text-white shadow-md'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 } ${!availableProviders.do ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <span className="flex items-center gap-2">
@@ -116,8 +116,8 @@ function App() {
               <button
                 onClick={() => setActiveTab('upload')}
                 className={`px-6 py-3 rounded-md font-medium transition-all ${activeTab === 'upload'
-                    ? 'bg-primary-600 text-white shadow-md'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
                   }`}
               >
                 <span className="flex items-center gap-2">
@@ -131,8 +131,8 @@ function App() {
             <button
               onClick={() => setActiveTab('library')}
               className={`px-6 py-3 rounded-md font-medium transition-all ${activeTab === 'library'
-                  ? 'bg-primary-600 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
                 }`}
             >
               <span className="flex items-center gap-2">
@@ -165,6 +165,8 @@ function App() {
           video={selectedVideo}
           onClose={handleClosePlayer}
           provider={storageProvider}
+          allVideos={videos}
+          onVideoSelect={handleVideoSelect}
         />
       )}
     </div>
