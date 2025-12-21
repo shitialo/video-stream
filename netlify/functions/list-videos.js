@@ -1,4 +1,5 @@
-const { S3Client, ListObjectsV2Command, HeadObjectCommand } = require('@aws-sdk/client-s3')
+const { ListObjectsV2Command } = require('@aws-sdk/client-s3')
+const { getStorageClient, getAvailableProviders } = require('./storage-config')
 
 exports.handler = async (event) => {
   // Handle CORS preflight requests
@@ -27,35 +28,25 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Validate environment variables
-    const {
-      R2_ACCOUNT_ID,
-      R2_ACCESS_KEY_ID,
-      R2_SECRET_ACCESS_KEY,
-      R2_BUCKET_NAME
-    } = process.env
+    // Get provider from query params (optional)
+    const queryParams = event.queryStringParameters || {}
+    const preferredProvider = queryParams.provider // 'r2', 'do', or undefined
 
-    if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
-      console.error('Missing R2 configuration')
+    // Get storage client based on provider
+    const { s3Client, bucketName, provider } = getStorageClient(preferredProvider)
+
+    if (!s3Client) {
+      console.error('No storage provider configured')
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Server configuration error' })
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'No storage provider configured' })
       }
     }
 
-    // Create S3 client for R2
-    const s3Client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID,
-        secretAccessKey: R2_SECRET_ACCESS_KEY
-      }
-    })
-
     // List objects in the videos folder
     const command = new ListObjectsV2Command({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: bucketName,
       Prefix: 'videos/'
     })
 
@@ -76,10 +67,14 @@ exports.handler = async (event) => {
           name: displayName,
           size: item.Size,
           uploaded: item.LastModified,
-          contentType: getContentType(filename)
+          contentType: getContentType(filename),
+          provider: provider
         }
       })
       .sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded)) // Sort by newest first
+
+    // Get available providers for frontend
+    const availableProviders = getAvailableProviders()
 
     return {
       statusCode: 200,
@@ -89,16 +84,19 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         videos,
-        count: videos.length
+        count: videos.length,
+        provider,
+        availableProviders
       })
     }
   } catch (error) {
     console.error('Error listing videos:', error)
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
         error: 'Failed to list videos',
-        details: error.message 
+        details: error.message
       })
     }
   }
@@ -112,8 +110,8 @@ function getContentType(filename) {
     'webm': 'video/webm',
     'ogg': 'video/ogg',
     'mov': 'video/quicktime',
-    'avi': 'video/x-msvideo'
+    'avi': 'video/x-msvideo',
+    'mkv': 'video/x-matroska'
   }
   return types[ext] || 'video/mp4'
 }
-

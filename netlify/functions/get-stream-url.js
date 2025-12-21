@@ -1,5 +1,6 @@
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3')
+const { GetObjectCommand } = require('@aws-sdk/client-s3')
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
+const { getStorageClient } = require('./storage-config')
 
 exports.handler = async (event) => {
   // Handle CORS preflight requests
@@ -28,48 +29,35 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { key } = JSON.parse(event.body)
+    const { key, provider: preferredProvider } = JSON.parse(event.body)
 
     if (!key) {
       return {
         statusCode: 400,
+        headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({ error: 'Video key is required' })
       }
     }
 
-    // Validate environment variables
-    const {
-      R2_ACCOUNT_ID,
-      R2_ACCESS_KEY_ID,
-      R2_SECRET_ACCESS_KEY,
-      R2_BUCKET_NAME
-    } = process.env
+    // Get storage client based on provider
+    const { s3Client, bucketName, provider } = getStorageClient(preferredProvider)
 
-    if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
-      console.error('Missing R2 configuration')
+    if (!s3Client) {
+      console.error('No storage provider configured')
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Server configuration error' })
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'No storage provider configured' })
       }
     }
 
-    // Create S3 client for R2
-    const s3Client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID,
-        secretAccessKey: R2_SECRET_ACCESS_KEY
-      }
-    })
-
     // Create presigned URL for streaming
     const command = new GetObjectCommand({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: bucketName,
       Key: key
     })
 
-    const streamUrl = await getSignedUrl(s3Client, command, { 
+    const streamUrl = await getSignedUrl(s3Client, command, {
       expiresIn: 3600 // URL valid for 1 hour
     })
 
@@ -81,6 +69,7 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         streamUrl,
+        provider,
         message: 'Stream URL generated successfully'
       })
     }
@@ -88,11 +77,11 @@ exports.handler = async (event) => {
     console.error('Error generating stream URL:', error)
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
         error: 'Failed to generate stream URL',
-        details: error.message 
+        details: error.message
       })
     }
   }
 }
-

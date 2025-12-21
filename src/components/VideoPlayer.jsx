@@ -3,7 +3,7 @@ import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
 import axios from 'axios'
 
-function VideoPlayer({ video, onClose }) {
+function VideoPlayer({ video, onClose, provider }) {
   const videoRef = useRef(null)
   const playerRef = useRef(null)
   const [streamUrl, setStreamUrl] = useState(null)
@@ -16,7 +16,8 @@ function VideoPlayer({ video, onClose }) {
       try {
         setLoading(true)
         const response = await axios.post('/.netlify/functions/get-stream-url', {
-          key: video.key
+          key: video.key,
+          provider: provider
         })
         setStreamUrl(response.data.streamUrl)
         setError(null)
@@ -29,7 +30,7 @@ function VideoPlayer({ video, onClose }) {
     }
 
     getStreamUrl()
-  }, [video.key])
+  }, [video.key, provider])
 
   useEffect(() => {
     if (!streamUrl || !videoRef.current) return
@@ -68,7 +69,7 @@ function VideoPlayer({ video, onClose }) {
 
     // Add keyboard shortcuts
     player.on('keydown', (e) => {
-      switch(e.key) {
+      switch (e.key) {
         case ' ':
         case 'k':
           e.preventDefault()
@@ -131,6 +132,21 @@ function VideoPlayer({ video, onClose }) {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
+  const getProviderBadge = () => {
+    if (provider === 'do') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-300 text-xs font-medium rounded-full">
+          DO Spaces
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-500/20 text-orange-300 text-xs font-medium rounded-full">
+        R2
+      </span>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-90 backdrop-blur-sm">
       <div className="relative w-full max-w-6xl">
@@ -147,7 +163,10 @@ function VideoPlayer({ video, onClose }) {
 
         {/* Video Info */}
         <div className="mb-4">
-          <h2 className="text-2xl font-bold text-white mb-2">{video.name}</h2>
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-2xl font-bold text-white">{video.name}</h2>
+            {getProviderBadge()}
+          </div>
           <div className="flex items-center gap-4 text-sm text-gray-300">
             <span className="flex items-center gap-1">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,4 +233,3 @@ function VideoPlayer({ video, onClose }) {
 }
 
 export default VideoPlayer
-

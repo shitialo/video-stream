@@ -1,6 +1,7 @@
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3')
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
 
+// Upload is only supported for R2 (not DO Spaces in this app)
 exports.handler = async (event) => {
   // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
@@ -33,11 +34,12 @@ exports.handler = async (event) => {
     if (!filename) {
       return {
         statusCode: 400,
+        headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({ error: 'Filename is required' })
       }
     }
 
-    // Validate environment variables
+    // Validate R2 environment variables (upload only works with R2)
     const {
       R2_ACCOUNT_ID,
       R2_ACCESS_KEY_ID,
@@ -46,10 +48,11 @@ exports.handler = async (event) => {
     } = process.env
 
     if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
-      console.error('Missing R2 configuration')
+      console.error('Missing R2 configuration - upload only supported for R2')
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Server configuration error' })
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'Upload not available - R2 not configured' })
       }
     }
 
@@ -79,8 +82,8 @@ exports.handler = async (event) => {
       }
     })
 
-    const uploadUrl = await getSignedUrl(s3Client, command, { 
-      expiresIn: 7200 // URL valid for 2 hours (allows time for large 2GB uploads on slower connections)
+    const uploadUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 7200 // URL valid for 2 hours
     })
 
     return {
@@ -92,6 +95,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         uploadUrl,
         key,
+        provider: 'r2',
         message: 'Upload URL generated successfully'
       })
     }
@@ -99,11 +103,11 @@ exports.handler = async (event) => {
     console.error('Error generating upload URL:', error)
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
         error: 'Failed to generate upload URL',
-        details: error.message 
+        details: error.message
       })
     }
   }
 }
-

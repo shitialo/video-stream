@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
+function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredVideos = videos.filter(video =>
@@ -17,13 +17,34 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const getProviderBadge = () => {
+    if (provider === 'do') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 5.46 4.45 9.91 9.91 9.91 5.46 0 9.91-4.45 9.91-9.91 0-5.46-4.45-9.91-9.91-9.91z" />
+          </svg>
+          DO Spaces
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-medium rounded-full">
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+        R2
+      </span>
+    )
   }
 
   return (
@@ -32,14 +53,17 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
       <div className="mb-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Video Library
-            </h2>
+            <div className="flex items-center gap-3 mb-2">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Video Library
+              </h2>
+              {getProviderBadge()}
+            </div>
             <p className="text-gray-600 dark:text-gray-400">
               {filteredVideos.length} {filteredVideos.length === 1 ? 'video' : 'videos'} available
             </p>
           </div>
-          
+
           <div className="flex gap-3">
             {/* Search */}
             <div className="relative flex-1 md:w-80">
@@ -96,7 +120,10 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
             No videos yet
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Upload your first video to get started
+            {provider === 'do'
+              ? 'Upload videos to your DO Spaces bucket via rclone or the dashboard'
+              : 'Upload your first video to get started'
+            }
           </p>
         </div>
       )}
@@ -120,7 +147,10 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
               onClick={() => onVideoSelect(video)}
             >
               {/* Thumbnail Placeholder */}
-              <div className="relative bg-gradient-to-br from-primary-500 to-primary-700 aspect-video flex items-center justify-center">
+              <div className={`relative aspect-video flex items-center justify-center ${provider === 'do'
+                  ? 'bg-gradient-to-br from-blue-500 to-blue-700'
+                  : 'bg-gradient-to-br from-primary-500 to-primary-700'
+                }`}>
                 <svg className="w-16 h-16 text-white opacity-80" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
                 </svg>
@@ -157,7 +187,10 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
 
                 {/* Play Button */}
                 <button
-                  className="mt-4 w-full py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition-colors"
+                  className={`mt-4 w-full py-2 text-white font-semibold rounded-lg transition-colors ${provider === 'do'
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-primary-600 hover:bg-primary-700'
+                    }`}
                   onClick={() => onVideoSelect(video)}
                 >
                   Play Video
@@ -172,4 +205,3 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh }) {
 }
 
 export default VideoLibrary
-
