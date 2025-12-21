@@ -6,10 +6,14 @@ import axios from 'axios'
 function VideoPlayer({ video, onClose, provider }) {
   const videoRef = useRef(null)
   const playerRef = useRef(null)
+  const playerContainerRef = useRef(null)
   const [streamUrl, setStreamUrl] = useState(null)
   const [subtitleUrls, setSubtitleUrls] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [seekIndicator, setSeekIndicator] = useState(null) // 'forward' | 'backward' | null
+  const lastTapTimeRef = useRef(0)
+  const lastTapSideRef = useRef(null)
 
   useEffect(() => {
     // Fetch streaming URL and subtitle URLs
@@ -278,26 +282,103 @@ function VideoPlayer({ video, onClose, provider }) {
           )}
 
           {!loading && !error && streamUrl && (
-            <div data-vjs-player>
-              <video
-                ref={videoRef}
-                className="video-js vjs-big-play-centered"
-              />
+            <div
+              ref={playerContainerRef}
+              className="relative"
+              onTouchEnd={(e) => {
+                const now = Date.now()
+                const rect = playerContainerRef.current?.getBoundingClientRect()
+                if (!rect) return
+
+                const touch = e.changedTouches[0]
+                const x = touch.clientX - rect.left
+                const isRightSide = x > rect.width / 2
+                const side = isRightSide ? 'right' : 'left'
+
+                // Check for double-tap (within 300ms on same side)
+                if (now - lastTapTimeRef.current < 300 && lastTapSideRef.current === side) {
+                  // Double tap detected!
+                  const player = playerRef.current
+                  if (player) {
+                    if (isRightSide) {
+                      // Seek forward 30 seconds
+                      player.currentTime(Math.min(player.duration(), player.currentTime() + 30))
+                      setSeekIndicator('forward')
+                    } else {
+                      // Seek backward 30 seconds
+                      player.currentTime(Math.max(0, player.currentTime() - 30))
+                      setSeekIndicator('backward')
+                    }
+                    // Clear indicator after animation
+                    setTimeout(() => setSeekIndicator(null), 500)
+                  }
+                  lastTapTimeRef.current = 0
+                  lastTapSideRef.current = null
+                } else {
+                  lastTapTimeRef.current = now
+                  lastTapSideRef.current = side
+                }
+              }}
+            >
+              <div data-vjs-player>
+                <video
+                  ref={videoRef}
+                  className="video-js vjs-big-play-centered"
+                />
+              </div>
+
+              {/* Double-tap seek indicators */}
+              {seekIndicator && (
+                <div className={`absolute inset-0 pointer-events-none flex items-center ${seekIndicator === 'forward' ? 'justify-end pr-12' : 'justify-start pl-12'
+                  }`}>
+                  <div className="bg-black/50 rounded-full p-4 animate-ping">
+                    <div className="flex items-center gap-1 text-white">
+                      {seekIndicator === 'forward' ? (
+                        <>
+                          <span className="text-lg font-bold">30</span>
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                          </svg>
+                          <span className="text-lg font-bold">30</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Keyboard Shortcuts Info */}
+        {/* Controls Info */}
         <div className="mt-4 p-4 bg-gray-800 bg-opacity-50 rounded-lg">
-          <p className="text-sm text-gray-300 font-semibold mb-2">Keyboard Shortcuts:</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-400">
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">Space</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">K</kbd> Play/Pause</div>
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">F</kbd> Fullscreen</div>
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">M</kbd> Mute</div>
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">C</kbd> Toggle Subtitles</div>
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">←</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">→</kbd> Seek ±5s</div>
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">↑</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">↓</kbd> Volume</div>
-            <div><kbd className="px-2 py-1 bg-gray-700 rounded">Esc</kbd> Close</div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Mobile Controls */}
+            <div>
+              <p className="text-sm text-gray-300 font-semibold mb-2">📱 Touch Controls:</p>
+              <div className="text-xs text-gray-400 space-y-1">
+                <div>Double-tap left side → Seek back 30s</div>
+                <div>Double-tap right side → Seek forward 30s</div>
+              </div>
+            </div>
+            {/* Keyboard Controls */}
+            <div className="hidden md:block">
+              <p className="text-sm text-gray-300 font-semibold mb-2">⌨️ Keyboard:</p>
+              <div className="grid grid-cols-2 gap-1 text-xs text-gray-400">
+                <div><kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">Space</kbd> Play/Pause</div>
+                <div><kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">F</kbd> Fullscreen</div>
+                <div><kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">M</kbd> Mute</div>
+                <div><kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">C</kbd> Subtitles</div>
+                <div><kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">←/→</kbd> Seek ±5s</div>
+                <div><kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">Esc</kbd> Close</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
