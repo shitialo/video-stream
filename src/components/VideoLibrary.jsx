@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import axios from 'axios'
 
 function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [deletingKey, setDeletingKey] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
 
   const filteredVideos = videos.filter(video =>
     video.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -24,6 +27,34 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const handleDelete = async (video, e) => {
+    e.stopPropagation() // Prevent card click
+    setShowDeleteConfirm(video.key)
+  }
+
+  const confirmDelete = async (video, e) => {
+    e.stopPropagation()
+    try {
+      setDeletingKey(video.key)
+      await axios.post('/.netlify/functions/delete-video', {
+        key: video.key,
+        provider: provider
+      })
+      setShowDeleteConfirm(null)
+      onRefresh() // Refresh the list
+    } catch (error) {
+      console.error('Error deleting video:', error)
+      alert('Failed to delete video: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  const cancelDelete = (e) => {
+    e.stopPropagation()
+    setShowDeleteConfirm(null)
   }
 
   const getProviderBadge = () => {
@@ -148,8 +179,8 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
             >
               {/* Thumbnail Placeholder */}
               <div className={`relative aspect-video flex items-center justify-center ${provider === 'do'
-                  ? 'bg-gradient-to-br from-blue-500 to-blue-700'
-                  : 'bg-gradient-to-br from-primary-500 to-primary-700'
+                ? 'bg-gradient-to-br from-blue-500 to-blue-700'
+                : 'bg-gradient-to-br from-primary-500 to-primary-700'
                 }`}>
                 <svg className="w-16 h-16 text-white opacity-80" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
@@ -185,16 +216,47 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
                   </div>
                 </div>
 
-                {/* Play Button */}
-                <button
-                  className={`mt-4 w-full py-2 text-white font-semibold rounded-lg transition-colors ${provider === 'do'
+                {/* Action Buttons */}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    className={`flex-1 py-2 text-white font-semibold rounded-lg transition-colors ${provider === 'do'
                       ? 'bg-blue-600 hover:bg-blue-700'
                       : 'bg-primary-600 hover:bg-primary-700'
-                    }`}
-                  onClick={() => onVideoSelect(video)}
-                >
-                  Play Video
-                </button>
+                      }`}
+                    onClick={(e) => { e.stopPropagation(); onVideoSelect(video) }}
+                  >
+                    Play
+                  </button>
+
+                  {/* Delete Button */}
+                  {showDeleteConfirm === video.key ? (
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors text-sm"
+                        onClick={(e) => confirmDelete(video, e)}
+                        disabled={deletingKey === video.key}
+                      >
+                        {deletingKey === video.key ? '...' : 'Yes'}
+                      </button>
+                      <button
+                        className="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors text-sm"
+                        onClick={cancelDelete}
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-500 dark:text-red-400 rounded-lg transition-colors"
+                      onClick={(e) => handleDelete(video, e)}
+                      title="Delete video"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

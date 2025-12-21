@@ -150,16 +150,30 @@ function VideoPlayer({ video, onClose, provider }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-90 backdrop-blur-sm">
       <div className="relative w-full max-w-6xl">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
-          aria-label="Close player"
-        >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {/* Top Navigation */}
+        <div className="absolute -top-12 left-0 right-0 flex items-center justify-between">
+          {/* Back Button */}
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 transition-colors bg-white/10 hover:bg-white/20 rounded-lg"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className="font-medium">Back to Library</span>
+          </button>
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="text-white hover:text-gray-300 transition-colors"
+            aria-label="Close player"
+          >
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
         {/* Video Info */}
         <div className="mb-4">
