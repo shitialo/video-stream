@@ -1,5 +1,52 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
+
+// Component to load and display poster with presigned URL
+function PosterImage({ posterKey, provider, fallbackGradient }) {
+  const [posterUrl, setPosterUrl] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!posterKey) {
+      setLoading(false)
+      return
+    }
+
+    const fetchPosterUrl = async () => {
+      try {
+        const response = await axios.post('/.netlify/functions/get-stream-url', {
+          key: posterKey,
+          provider: provider
+        })
+        setPosterUrl(response.data.streamUrl)
+      } catch (err) {
+        console.error('Error fetching poster:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPosterUrl()
+  }, [posterKey, provider])
+
+  if (!posterKey || loading || !posterUrl) {
+    return (
+      <div className={`w-full h-full flex items-center justify-center ${fallbackGradient}`}>
+        <svg className="w-16 h-16 text-white opacity-80" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={posterUrl}
+      alt="Video thumbnail"
+      className="w-full h-full object-cover"
+    />
+  )
+}
 
 function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -177,15 +224,22 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
               className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all cursor-pointer transform hover:-translate-y-1"
               onClick={() => onVideoSelect(video)}
             >
-              {/* Thumbnail Placeholder */}
-              <div className={`relative aspect-video flex items-center justify-center ${provider === 'do'
+              {/* Thumbnail with Poster */}
+              <div className={`relative aspect-video ${provider === 'do'
                 ? 'bg-gradient-to-br from-blue-500 to-blue-700'
                 : 'bg-gradient-to-br from-primary-500 to-primary-700'
                 }`}>
-                <svg className="w-16 h-16 text-white opacity-80" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
-                </svg>
-                <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all flex items-center justify-center">
+                <PosterImage
+                  posterKey={video.poster}
+                  provider={provider}
+                  fallbackGradient={provider === 'do'
+                    ? 'bg-gradient-to-br from-blue-500 to-blue-700'
+                    : 'bg-gradient-to-br from-primary-500 to-primary-700'
+                  }
+                />
+
+                {/* Hover overlay with play button */}
+                <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-40 transition-all flex items-center justify-center">
                   <div className="opacity-0 hover:opacity-100 transition-opacity">
                     <div className="w-14 h-14 bg-white bg-opacity-90 rounded-full flex items-center justify-center">
                       <svg className="w-8 h-8 text-primary-600 ml-1" fill="currentColor" viewBox="0 0 20 20">
@@ -194,6 +248,16 @@ function VideoLibrary({ videos, loading, onVideoSelect, onRefresh, provider }) {
                     </div>
                   </div>
                 </div>
+
+                {/* Subtitle badge */}
+                {video.subtitles && video.subtitles.length > 0 && (
+                  <div className="absolute top-2 right-2 px-2 py-1 bg-black/70 text-white text-xs font-medium rounded flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    </svg>
+                    CC
+                  </div>
+                )}
               </div>
 
               {/* Video Info */}

@@ -27,9 +27,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers: {
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ error: 'Method not allowed' })
     }
   }
@@ -51,7 +49,7 @@ exports.handler = async (event) => {
       }
     }
 
-    // List objects in the videos folder
+    // List ALL objects in the videos folder (including subdirectories)
     const command = new ListObjectsV2Command({
       Bucket: bucketName,
       Prefix: 'videos/'
@@ -60,64 +58,96 @@ exports.handler = async (event) => {
     const response = await s3Client.send(command)
     const allItems = response.Contents || []
 
-    // Build a map of base names to associated files (subtitles, posters)
-    const fileMap = new Map()
+    // Separate files by type
+    const videoFiles = []
+    const subtitleFiles = []
+    const posterFiles = []
 
     allItems.forEach(item => {
-      const filename = item.Key.split('/').pop()
+      if (item.Size === 0) return // Skip folders
+
+      const fullPath = item.Key
+      const filename = fullPath.split('/').pop()
       const ext = filename.split('.').pop().toLowerCase()
 
-      // Get base name (without extension and common suffixes)
-      let baseName = filename.replace(/\.[^.]+$/, '') // Remove extension
-      baseName = baseName.replace(/-poster$/, '') // Remove -poster suffix
-
-      if (!fileMap.has(baseName)) {
-        fileMap.set(baseName, { video: null, subtitles: [], poster: null })
-      }
-
-      const entry = fileMap.get(baseName)
-
       if (VIDEO_EXTENSIONS.includes(ext)) {
-        entry.video = item
+        videoFiles.push({ ...item, filename, fullPath })
       } else if (SUBTITLE_EXTENSIONS.includes(ext)) {
-        entry.subtitles.push({
-          key: item.Key,
-          filename: filename,
-          language: extractLanguage(filename)
+        // Subtitles are in: videos/Subs/<EpisodeName>/2_eng,English.srt
+        // Extract the episode folder name from path
+        const pathParts = fullPath.split('/')
+        // Find the Subs folder and get the episode name after it
+        const subsIndex = pathParts.findIndex(p => p.toLowerCase() === 'subs')
+        const episodeFolderName = subsIndex >= 0 ? pathParts[subsIndex + 1] : null
+
+        subtitleFiles.push({
+          ...item,
+          filename,
+          fullPath,
+          episodeFolderName // e.g. "Boston.Legal.S01E01.1080p.WEBRip.x265-KONTRAST"
         })
-      } else if (IMAGE_EXTENSIONS.includes(ext) && filename.includes('-poster')) {
-        entry.poster = item.Key
+      } else if (IMAGE_EXTENSIONS.includes(ext)) {
+        // Posters: videos/Boston.Legal.S01E01.1080p.WEBRip.x265-KONTRAST-poster.jpg
+        posterFiles.push({ ...item, filename, fullPath })
       }
     })
 
-    // Format the video list (only actual videos)
-    const videos = []
-
-    fileMap.forEach((files, baseName) => {
-      if (!files.video) return // Skip if no video file
-
-      const item = files.video
-      const filename = item.Key.split('/').pop()
+    // Build video list with matched subtitles and posters
+    const videos = videoFiles.map(item => {
+      const filename = item.filename
       // Try to extract original filename from timestamp prefix
       const nameMatch = filename.match(/^\d+-(.+)$/)
-      const displayName = nameMatch
-        ? nameMatch[1].replace(/_/g, ' ').replace(/\.[^.]+$/, '')
-        : filename.replace(/\.[^.]+$/, '')
+      const cleanFilename = nameMatch ? nameMatch[1] : filename
+      const videoBaseName = cleanFilename.replace(/\.[^.]+$/, '') // Remove extension
+      const displayName = videoBaseName.replace(/_/g, ' ')
 
-      videos.push({
+      // Find matching subtitles (in Subs/<episode-folder-name>/ directory)
+      const matchedSubtitles = subtitleFiles
+        .filter(sub => {
+          // Match if the subtitle's episode folder name matches the video base name
+          if (sub.episodeFolderName) {
+            return sub.episodeFolderName === videoBaseName
+          }
+          return false
+        })
+        .map(sub => ({
+          key: sub.Key,
+          filename: sub.filename,
+          language: extractLanguage(sub.filename)
+        }))
+
+      // Find matching poster (video-name-poster.jpg)
+      const poster = posterFiles.find(p => {
+        const posterBaseName = p.filename.replace(/-poster\.[^.]+$/, '')
+        return posterBaseName === videoBaseName
+      })
+
+      return {
         key: item.Key,
         name: displayName,
         size: item.Size,
         uploaded: item.LastModified,
         contentType: getContentType(filename),
         provider: provider,
-        subtitles: files.subtitles,
-        poster: files.poster
-      })
+        subtitles: matchedSubtitles,
+        poster: poster ? poster.Key : null
+      }
     })
 
-    // Sort by newest first
-    videos.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded))
+    // Sort by episode number
+    videos.sort((a, b) => {
+      const aMatch = a.name.match(/[Ss](\d+)[Ee](\d+)/)
+      const bMatch = b.name.match(/[Ss](\d+)[Ee](\d+)/)
+
+      if (aMatch && bMatch) {
+        const aSeason = parseInt(aMatch[1])
+        const bSeason = parseInt(bMatch[1])
+        if (aSeason !== bSeason) return aSeason - bSeason
+        return parseInt(aMatch[2]) - parseInt(bMatch[2])
+      }
+
+      return a.name.localeCompare(b.name)
+    })
 
     // Get available providers for frontend
     const availableProviders = getAvailableProviders()
@@ -132,7 +162,11 @@ exports.handler = async (event) => {
         videos,
         count: videos.length,
         provider,
-        availableProviders
+        availableProviders,
+        debug: {
+          totalSubtitles: subtitleFiles.length,
+          totalPosters: posterFiles.length
+        }
       })
     }
   } catch (error) {
@@ -148,21 +182,23 @@ exports.handler = async (event) => {
   }
 }
 
-// Extract language code from subtitle filename
+// Extract language from subtitle filename like "2_eng,English.srt"
 function extractLanguage(filename) {
-  // Common patterns: 2_eng,English.srt, video.en.srt, video_english.srt
+  // Patterns: "2_eng,English.srt", "3_fre,French.srt"
   const patterns = [
-    /[_.]([a-z]{2,3})[,_.]?([A-Za-z]+)?\.srt$/i,
-    /[_-]([A-Za-z]+)\.srt$/i
+    /,([A-Z][a-z]+)\./i,           // ",English." 
+    /[_]([a-z]{2,3}),/i,           // "_eng,"
+    /[_-]([A-Za-z]+)\.[^.]+$/i     // "_english.srt"
   ]
 
   for (const pattern of patterns) {
     const match = filename.match(pattern)
     if (match) {
-      return match[2] || match[1] // Prefer full name if available
+      const lang = match[1]
+      return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase()
     }
   }
-  return 'Unknown'
+  return 'English'
 }
 
 // Helper function to determine content type from filename
