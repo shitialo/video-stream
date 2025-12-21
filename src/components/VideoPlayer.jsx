@@ -7,19 +7,46 @@ function VideoPlayer({ video, onClose, provider }) {
   const videoRef = useRef(null)
   const playerRef = useRef(null)
   const [streamUrl, setStreamUrl] = useState(null)
+  const [subtitleUrls, setSubtitleUrls] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    // Fetch streaming URL
-    const getStreamUrl = async () => {
+    // Fetch streaming URL and subtitle URLs
+    const fetchUrls = async () => {
       try {
         setLoading(true)
-        const response = await axios.post('/.netlify/functions/get-stream-url', {
+
+        // Get video stream URL
+        const videoResponse = await axios.post('/.netlify/functions/get-stream-url', {
           key: video.key,
           provider: provider
         })
-        setStreamUrl(response.data.streamUrl)
+        setStreamUrl(videoResponse.data.streamUrl)
+
+        // Get subtitle URLs if available
+        if (video.subtitles && video.subtitles.length > 0) {
+          const subtitlePromises = video.subtitles.map(async (sub) => {
+            try {
+              const subResponse = await axios.post('/.netlify/functions/get-stream-url', {
+                key: sub.key,
+                provider: provider
+              })
+              return {
+                src: subResponse.data.streamUrl,
+                srclang: sub.language?.substring(0, 2).toLowerCase() || 'en',
+                label: sub.language || 'English',
+                kind: 'subtitles'
+              }
+            } catch (err) {
+              console.error('Error getting subtitle URL:', err)
+              return null
+            }
+          })
+          const subs = (await Promise.all(subtitlePromises)).filter(Boolean)
+          setSubtitleUrls(subs)
+        }
+
         setError(null)
       } catch (err) {
         console.error('Error getting stream URL:', err)
@@ -29,8 +56,8 @@ function VideoPlayer({ video, onClose, provider }) {
       }
     }
 
-    getStreamUrl()
-  }, [video.key, provider])
+    fetchUrls()
+  }, [video.key, video.subtitles, provider])
 
   useEffect(() => {
     if (!streamUrl || !videoRef.current) return
@@ -53,6 +80,7 @@ function VideoPlayer({ video, onClose, provider }) {
           'progressControl',
           'remainingTimeDisplay',
           'playbackRateMenuButton',
+          'subtitlesButton',
           'pictureInPictureToggle',
           'fullscreenToggle'
         ]
@@ -65,6 +93,17 @@ function VideoPlayer({ video, onClose, provider }) {
     player.src({
       src: streamUrl,
       type: video.contentType || 'video/mp4'
+    })
+
+    // Add subtitles if available
+    subtitleUrls.forEach((sub, index) => {
+      player.addRemoteTextTrack({
+        kind: sub.kind,
+        srclang: sub.srclang,
+        label: sub.label,
+        src: sub.src,
+        default: index === 0 // Make first subtitle default
+      }, false)
     })
 
     // Add keyboard shortcuts
@@ -107,6 +146,17 @@ function VideoPlayer({ video, onClose, provider }) {
           e.preventDefault()
           player.volume(Math.max(0, player.volume() - 0.1))
           break
+        case 'c':
+          e.preventDefault()
+          // Toggle subtitles
+          const tracks = player.textTracks()
+          for (let i = 0; i < tracks.length; i++) {
+            if (tracks[i].kind === 'subtitles') {
+              tracks[i].mode = tracks[i].mode === 'showing' ? 'disabled' : 'showing'
+              break
+            }
+          }
+          break
         default:
           break
       }
@@ -119,7 +169,7 @@ function VideoPlayer({ video, onClose, provider }) {
         playerRef.current = null
       }
     }
-  }, [streamUrl, video.contentType])
+  }, [streamUrl, subtitleUrls, video.contentType])
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -148,10 +198,10 @@ function VideoPlayer({ video, onClose, provider }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-4 px-4 bg-black bg-opacity-90 backdrop-blur-sm overflow-y-auto">
       <div className="relative w-full max-w-6xl">
         {/* Top Navigation */}
-        <div className="absolute -top-12 left-0 right-0 flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           {/* Back Button */}
           <button
             onClick={onClose}
@@ -166,10 +216,10 @@ function VideoPlayer({ video, onClose, provider }) {
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="text-white hover:text-gray-300 transition-colors"
+            className="text-white hover:text-gray-300 transition-colors p-2 hover:bg-white/10 rounded-lg"
             aria-label="Close player"
           >
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -177,9 +227,17 @@ function VideoPlayer({ video, onClose, provider }) {
 
         {/* Video Info */}
         <div className="mb-4">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold text-white">{video.name}</h2>
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h2 className="text-xl md:text-2xl font-bold text-white break-all">{video.name}</h2>
             {getProviderBadge()}
+            {video.subtitles && video.subtitles.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-300 text-xs font-medium rounded-full">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                </svg>
+                {video.subtitles.length} Subtitle{video.subtitles.length > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4 text-sm text-gray-300">
             <span className="flex items-center gap-1">
@@ -232,10 +290,11 @@ function VideoPlayer({ video, onClose, provider }) {
         {/* Keyboard Shortcuts Info */}
         <div className="mt-4 p-4 bg-gray-800 bg-opacity-50 rounded-lg">
           <p className="text-sm text-gray-300 font-semibold mb-2">Keyboard Shortcuts:</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-400">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-400">
             <div><kbd className="px-2 py-1 bg-gray-700 rounded">Space</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">K</kbd> Play/Pause</div>
             <div><kbd className="px-2 py-1 bg-gray-700 rounded">F</kbd> Fullscreen</div>
             <div><kbd className="px-2 py-1 bg-gray-700 rounded">M</kbd> Mute</div>
+            <div><kbd className="px-2 py-1 bg-gray-700 rounded">C</kbd> Toggle Subtitles</div>
             <div><kbd className="px-2 py-1 bg-gray-700 rounded">←</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">→</kbd> Seek ±5s</div>
             <div><kbd className="px-2 py-1 bg-gray-700 rounded">↑</kbd> / <kbd className="px-2 py-1 bg-gray-700 rounded">↓</kbd> Volume</div>
             <div><kbd className="px-2 py-1 bg-gray-700 rounded">Esc</kbd> Close</div>
