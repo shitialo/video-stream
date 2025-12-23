@@ -1,11 +1,15 @@
 /**
  * Watch Progress Utilities
- * Manages video watch progress using localStorage
+ * Manages video watch progress using localStorage with server sync
  */
 
 const STORAGE_KEY = 'videoWatchProgress'
 const RECENTLY_WATCHED_KEY = 'recentlyWatched'
+const SYNC_CODE_KEY = 'videostream_sync_code'
 const WATCHED_THRESHOLD = 0.9 // 90% = considered "watched"
+
+let syncDebounceTimer = null
+const SYNC_DEBOUNCE_MS = 5000 // Sync to server 5 seconds after last activity
 
 /**
  * Get all progress data from localStorage
@@ -31,6 +35,32 @@ function saveAllProgress(data) {
 }
 
 /**
+ * Debounced sync to server
+ */
+function debouncedServerSync() {
+    if (syncDebounceTimer) {
+        clearTimeout(syncDebounceTimer)
+    }
+
+    syncDebounceTimer = setTimeout(async () => {
+        const syncCode = localStorage.getItem(SYNC_CODE_KEY)
+        if (!syncCode) return
+
+        try {
+            const progress = getAllProgress()
+            await fetch('/.netlify/functions/sync-progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: syncCode, progress })
+            })
+            console.log('[Sync] Progress synced to server')
+        } catch (err) {
+            console.error('[Sync] Failed to sync:', err)
+        }
+    }, SYNC_DEBOUNCE_MS)
+}
+
+/**
  * Save progress for a specific video
  * @param {string} videoKey - Unique video identifier
  * @param {number} currentTime - Current playback time in seconds
@@ -50,6 +80,9 @@ export function saveProgress(videoKey, currentTime, duration) {
 
     // Update recently watched list
     updateRecentlyWatched(videoKey)
+
+    // Trigger debounced server sync
+    debouncedServerSync()
 }
 
 /**
