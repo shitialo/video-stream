@@ -42,6 +42,31 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
     }
   }, [video, allVideos])
 
+  // Convert SRT to VTT format
+  const convertSrtToVtt = (srtContent) => {
+    // Add VTT header
+    let vtt = 'WEBVTT\n\n'
+
+    // Replace SRT timestamp format (00:00:00,000) with VTT format (00:00:00.000)
+    // Also handle the cue structure
+    const srtLines = srtContent.trim().split(/\r?\n/)
+    let result = []
+
+    for (let i = 0; i < srtLines.length; i++) {
+      let line = srtLines[i]
+
+      // Check if this is a timestamp line (contains -->)
+      if (line.includes('-->')) {
+        // Replace commas with periods in timestamps
+        line = line.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')
+      }
+
+      result.push(line)
+    }
+
+    return vtt + result.join('\n')
+  }
+
   // Fetch streaming URL and subtitle URLs
   useEffect(() => {
     const fetchUrls = async () => {
@@ -61,12 +86,26 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
                 key: sub.key,
                 provider: provider
               })
+
+              // Fetch the SRT content and convert to VTT
+              const srtUrl = subResponse.data.streamUrl
+              const srtResponse = await axios.get(srtUrl, { responseType: 'text' })
+              const srtContent = srtResponse.data
+
+              // Convert SRT to VTT
+              const vttContent = convertSrtToVtt(srtContent)
+
+              // Create a blob URL for the VTT content
+              const vttBlob = new Blob([vttContent], { type: 'text/vtt' })
+              const vttUrl = URL.createObjectURL(vttBlob)
+
               return {
-                src: subResponse.data.streamUrl,
+                src: vttUrl,
                 srclang: sub.language?.substring(0, 2).toLowerCase() || 'en',
                 label: sub.language || 'English',
                 kind: 'subtitles',
-                key: sub.key
+                key: sub.key,
+                blobUrl: vttUrl // Track blob URLs for cleanup
               }
             } catch (err) {
               console.error('Error getting subtitle URL:', err)
@@ -94,6 +133,15 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
     }
 
     fetchUrls()
+
+    // Cleanup blob URLs on unmount
+    return () => {
+      subtitleUrls.forEach(sub => {
+        if (sub.blobUrl) {
+          URL.revokeObjectURL(sub.blobUrl)
+        }
+      })
+    }
   }, [video.key, video.subtitles, provider])
 
   // Initialize player
