@@ -25,6 +25,13 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
   const lastTapTimeRef = useRef(0)
   const lastTapSideRef = useRef(null)
   const nextEpisodeRef = useRef(null)
+  const onVideoSelectRef = useRef(onVideoSelect)
+  const autoPlayTimeoutRef = useRef(null)
+
+  // Keep onVideoSelect ref current
+  useEffect(() => {
+    onVideoSelectRef.current = onVideoSelect
+  }, [onVideoSelect])
 
   // Find next episode on mount
   useEffect(() => {
@@ -164,11 +171,11 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
     // Auto-play next countdown
     player.on('ended', () => {
       saveProgress(video.key, player.duration(), player.duration())
-      if (nextEpisodeRef.current && onVideoSelect) {
+      if (nextEpisodeRef.current && onVideoSelectRef.current) {
         // Auto-play next after 3 seconds
-        setTimeout(() => {
-          if (nextEpisodeRef.current) {
-            onVideoSelect(nextEpisodeRef.current)
+        autoPlayTimeoutRef.current = setTimeout(() => {
+          if (nextEpisodeRef.current && onVideoSelectRef.current) {
+            onVideoSelectRef.current(nextEpisodeRef.current)
           }
         }, 3000)
       }
@@ -229,6 +236,9 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
       if (progressSaveInterval.current) {
         clearInterval(progressSaveInterval.current)
       }
+      if (autoPlayTimeoutRef.current) {
+        clearTimeout(autoPlayTimeoutRef.current)
+      }
       if (playerRef.current) {
         // Save progress before closing
         if (player.duration()) {
@@ -238,7 +248,7 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
         playerRef.current = null
       }
     }
-  }, [streamUrl, subtitleUrls, video.contentType, video.key, onVideoSelect, showNextEpisode])
+  }, [streamUrl, subtitleUrls, video.contentType, video.key])
 
   // Update countdown
   useEffect(() => {

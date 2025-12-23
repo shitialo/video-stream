@@ -162,6 +162,7 @@ function App() {
       {/* Video Player Modal */}
       {selectedVideo && (
         <VideoPlayer
+          key={selectedVideo.key}
           video={selectedVideo}
           onClose={handleClosePlayer}
           provider={storageProvider}
