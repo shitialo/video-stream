@@ -162,7 +162,7 @@ export function SyncProvider({ children }) {
             }
         } catch (err) {
             console.error('Sync from server failed:', err)
-            setSyncError('Could not fetch progress')
+            // Don't show error for background syncs
             return false
         } finally {
             setIsSyncing(false)
@@ -170,6 +170,56 @@ export function SyncProvider({ children }) {
 
         return false
     }, [syncCode])
+
+    // Bidirectional sync (fetch then push)
+    const performBidirectionalSync = useCallback(async () => {
+        if (!syncCode || isSyncing) return
+
+        console.log('[Sync] Performing bidirectional sync...')
+
+        // First, fetch from server to get latest
+        await syncFromServer()
+
+        // Then push local changes (with merged data)
+        await syncToServer()
+    }, [syncCode, isSyncing, syncFromServer, syncToServer])
+
+    // Auto-sync on app load (when sync code is set)
+    useEffect(() => {
+        if (syncCode && isInitialized) {
+            console.log('[Sync] Auto-syncing on app load...')
+            performBidirectionalSync()
+        }
+    }, [syncCode, isInitialized]) // Only run when sync code becomes available
+
+    // Periodic sync every 30 seconds
+    useEffect(() => {
+        if (!syncCode) return
+
+        const intervalId = setInterval(() => {
+            if (!document.hidden) { // Only sync if tab is visible
+                console.log('[Sync] Periodic sync...')
+                performBidirectionalSync()
+            }
+        }, 30000) // 30 seconds
+
+        return () => clearInterval(intervalId)
+    }, [syncCode, performBidirectionalSync])
+
+    // Sync when page becomes visible (user returns to tab)
+    useEffect(() => {
+        if (!syncCode) return
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('[Sync] Page visible, syncing...')
+                performBidirectionalSync()
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [syncCode, performBidirectionalSync])
 
     const value = {
         syncCode,
