@@ -9,6 +9,8 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
   const playerRef = useRef(null)
   const playerContainerRef = useRef(null)
   const progressSaveInterval = useRef(null)
+  const previewVideoRef = useRef(null)
+  const previewCanvasRef = useRef(null)
 
   const [streamUrl, setStreamUrl] = useState(null)
   const [subtitleUrls, setSubtitleUrls] = useState([])
@@ -22,11 +24,20 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
   const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState(10)
   const [downloading, setDownloading] = useState(false)
 
+  // Seek preview state
+  const [seekPreview, setSeekPreview] = useState({
+    show: false,
+    time: 0,
+    x: 0,
+    thumbnail: null
+  })
+
   const lastTapTimeRef = useRef(0)
   const lastTapSideRef = useRef(null)
   const nextEpisodeRef = useRef(null)
   const onVideoSelectRef = useRef(onVideoSelect)
   const autoPlayTimeoutRef = useRef(null)
+  const seekPreviewDebounceRef = useRef(null)
 
   // Keep onVideoSelect ref current
   useEffect(() => {
@@ -417,6 +428,95 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
     }
   }
 
+  // Seek preview - capture frame from hidden video
+  const capturePreviewFrame = useCallback((time) => {
+    const previewVideo = previewVideoRef.current
+    const canvas = previewCanvasRef.current
+
+    if (!previewVideo || !canvas || !streamUrl) return
+
+    // Set the preview video time
+    previewVideo.currentTime = time
+  }, [streamUrl])
+
+  // Handle seeked event on preview video to capture frame
+  useEffect(() => {
+    const previewVideo = previewVideoRef.current
+    const canvas = previewCanvasRef.current
+
+    if (!previewVideo || !canvas) return
+
+    const handleSeeked = () => {
+      const ctx = canvas.getContext('2d')
+      if (ctx && previewVideo.videoWidth > 0) {
+        // Set canvas size to match video aspect ratio
+        const aspectRatio = previewVideo.videoWidth / previewVideo.videoHeight
+        canvas.width = 160
+        canvas.height = Math.round(160 / aspectRatio)
+
+        // Draw the current frame
+        ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height)
+
+        // Get the thumbnail as data URL
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.7)
+        setSeekPreview(prev => ({ ...prev, thumbnail }))
+      }
+    }
+
+    previewVideo.addEventListener('seeked', handleSeeked)
+    return () => previewVideo.removeEventListener('seeked', handleSeeked)
+  }, [])
+
+  // Setup progress bar hover listeners
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player) return
+
+    const progressControl = player.controlBar?.progressControl?.el()
+    if (!progressControl) return
+
+    const handleMouseMove = (e) => {
+      const rect = progressControl.getBoundingClientRect()
+      const percent = (e.clientX - rect.left) / rect.width
+      const duration = player.duration()
+
+      if (duration && percent >= 0 && percent <= 1) {
+        const time = percent * duration
+
+        // Debounce the preview capture
+        if (seekPreviewDebounceRef.current) {
+          clearTimeout(seekPreviewDebounceRef.current)
+        }
+
+        seekPreviewDebounceRef.current = setTimeout(() => {
+          capturePreviewFrame(time)
+        }, 100)
+
+        setSeekPreview(prev => ({
+          ...prev,
+          show: true,
+          time,
+          x: e.clientX - rect.left
+        }))
+      }
+    }
+
+    const handleMouseLeave = () => {
+      if (seekPreviewDebounceRef.current) {
+        clearTimeout(seekPreviewDebounceRef.current)
+      }
+      setSeekPreview(prev => ({ ...prev, show: false, thumbnail: null }))
+    }
+
+    progressControl.addEventListener('mousemove', handleMouseMove)
+    progressControl.addEventListener('mouseleave', handleMouseLeave)
+
+    return () => {
+      progressControl.removeEventListener('mousemove', handleMouseMove)
+      progressControl.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [capturePreviewFrame])
+
   const getProviderBadge = () => {
     if (provider === 'do') {
       return (
@@ -605,6 +705,35 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
                   </div>
                 </div>
               )}
+
+              {/* Seek Preview Tooltip */}
+              {seekPreview.show && (
+                <div
+                  className="absolute pointer-events-none z-20"
+                  style={{
+                    bottom: '60px',
+                    left: `${Math.max(80, Math.min(seekPreview.x, playerContainerRef.current?.offsetWidth - 80 || 0))}px`,
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  <div className="bg-black/90 rounded-lg overflow-hidden shadow-xl border border-white/20">
+                    {seekPreview.thumbnail ? (
+                      <img
+                        src={seekPreview.thumbnail}
+                        alt="Preview"
+                        className="w-40 h-auto"
+                      />
+                    ) : (
+                      <div className="w-40 h-24 bg-gray-800 flex items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
+                    <div className="text-center py-1 text-white text-sm font-medium bg-black/80">
+                      {formatTime(seekPreview.time)}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -633,6 +762,25 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
           </div>
         </div>
       </div>
+
+      {/* Hidden video element for seek preview frame capture */}
+      {streamUrl && (
+        <>
+          <video
+            ref={previewVideoRef}
+            src={streamUrl}
+            preload="metadata"
+            muted
+            playsInline
+            crossOrigin="anonymous"
+            className="hidden"
+          />
+          <canvas
+            ref={previewCanvasRef}
+            className="hidden"
+          />
+        </>
+      )}
     </div>
   )
 }
