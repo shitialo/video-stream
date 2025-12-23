@@ -381,7 +381,7 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
           player.currentTime(Math.min(player.duration(), player.currentTime() + 30))
           setSeekIndicator('forward')
         } else {
-          player.currentTime(Math.max(0, player.currentTime() - 30))
+          player.currentTime(Math.max(0, player.currentTime() - 10))
           setSeekIndicator('backward')
         }
         setTimeout(() => setSeekIndicator(null), 500)
@@ -581,7 +581,7 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                           </svg>
-                          <span className="text-lg font-bold">30</span>
+                          <span className="text-lg font-bold">10</span>
                         </>
                       )}
                     </div>
@@ -598,7 +598,7 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
             <div>
               <p className="text-sm text-gray-300 font-semibold mb-2">📱 Touch Controls:</p>
               <div className="text-xs text-gray-400 space-y-1">
-                <div>Double-tap left → -30s</div>
+                <div>Double-tap left → -10s</div>
                 <div>Double-tap right → +30s</div>
               </div>
             </div>
