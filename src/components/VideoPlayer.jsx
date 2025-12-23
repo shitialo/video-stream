@@ -155,6 +155,23 @@ function VideoPlayer({ video, onClose, provider, allVideos = [], onVideoSelect }
       fluid: true,
       aspectRatio: '16:9',
       playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
+      html5: {
+        // Enable native HTML5 video features for better performance
+        nativeVideoTracks: true,
+        nativeAudioTracks: true,
+        nativeTextTracks: true,
+        // Optimize for progressive MP4 with range requests
+        vhs: {
+          overrideNative: false, // Use native where possible
+          enableLowInitialPlaylist: true,
+          smoothQualityChange: true,
+          bandwidth: 5000000, // 5Mbps initial bandwidth estimate
+        }
+      },
+      // Buffer configuration
+      liveui: false,
+      // Responsive sizing
+      responsive: true,
       controlBar: {
         children: [
           'playToggle',

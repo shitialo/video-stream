@@ -4,6 +4,7 @@ import UploadSection from './components/UploadSection'
 import VideoLibrary from './components/VideoLibrary'
 import VideoPlayer from './components/VideoPlayer'
 import axios from 'axios'
+import { registerServiceWorker } from './utils/serviceWorkerRegistration'
 
 function App() {
   const [darkMode, setDarkMode] = useState(true)
@@ -13,6 +14,11 @@ function App() {
   const [activeTab, setActiveTab] = useState('library') // Default to library
   const [storageProvider, setStorageProvider] = useState('r2') // 'r2' or 'do'
   const [availableProviders, setAvailableProviders] = useState({ r2: true, do: false })
+
+  // Register service worker for video caching
+  useEffect(() => {
+    registerServiceWorker()
+  }, [])
 
   useEffect(() => {
     // Set dark mode class on html element
